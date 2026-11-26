@@ -98,6 +98,8 @@ export const sfx = {
   hit(head) { noise(0.08, { type: 'bandpass', freq: head ? 1400 : 600, q: 2, gain: 0.45 }); if (head) tone(1600, 0.08, { type: 'triangle', gain: 0.15 }); },
   kill() { noise(0.3, { freq: 900, gain: 0.7, sweepTo: 100 }); tone(180, 0.22, { type: 'sawtooth', gain: 0.12, slideTo: 45, filter: 900 }); },
   gib() { noise(0.45, { freq: 1500, gain: 0.9, sweepTo: 80 }); tone(70, 0.3, { gain: 0.7, slideTo: 30 }); },
+  splat(v = 1) { noise(0.12, { type: 'bandpass', freq: 380 + Math.random() * 200, q: 1.5, gain: 0.35, sweepTo: 150 }, v); },
+  sever() { noise(0.22, { type: 'bandpass', freq: 900, q: 1, gain: 0.6, sweepTo: 250 }); tone(90, 0.15, { gain: 0.4, slideTo: 40 }); },
   dash() { noise(0.22, { type: 'bandpass', freq: 700, q: 1.2, gain: 0.45, sweepTo: 3000 }); },
   jump() { tone(200, 0.1, { gain: 0.12, slideTo: 380 }); },
   land() { noise(0.08, { freq: 350, gain: 0.35 }); },

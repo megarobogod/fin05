@@ -1,13 +1,14 @@
-// fx.js - the juice: gore, sparks, splats on the floor, flying chunks,
-// bullet tracers and explosions.
+// fx.js - the juice: blood droplets, sparks, splats on floors and walls,
+// bullet tracers and explosions. (Bodies, limbs and chunks are in gore.js.)
 import * as THREE from 'three';
 import { textures } from './textures.js';
+import { CELL } from './level.js';
 
 // ---- Tuning ----
 const GORE_MAX = 1500;     // blood/ichor droplets at once
 const GLOW_MAX = 1200;     // glowing sparks at once
-const DECALS = 180;        // splats on the floor before old ones get reused
-const CHUNKS = 60;         // flying gibs
+const DECALS = 1200;       // splats on floors and walls before old ones get reused
+const WALL_SPLAT = 0.35;   // chance a droplet that hits a wall leaves a splat
 const TRACERS = 40;
 
 export const COLORS = {
@@ -18,6 +19,10 @@ export const COLORS = {
   bile: [0.75, 1, 0.2],
   cyan: [0.3, 0.9, 1],
 };
+
+const UP = new THREE.Vector3(0, 1, 0), FACE = new THREE.Vector3(0, 0, 1);
+const tmpN = new THREE.Vector3(), tmpScale = new THREE.Vector3(), tmpMatrix = new THREE.Matrix4();
+const spinQ = new THREE.Quaternion(), tmpColor = new THREE.Color();
 
 // A big pool of points that fly, fall and die. Additive ones glow and fade.
 class Particles {
@@ -64,12 +69,17 @@ class Particles {
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.pos[k + 1] = -9999; continue; }
       this.vel[k + 1] -= this.grav[i] * dt;
-      const oy = this.pos[k + 1];
+      const ox = this.pos[k], oy = this.pos[k + 1], oz = this.pos[k + 2];
       this.pos[k] += this.vel[k] * dt; this.pos[k + 1] += this.vel[k + 1] * dt; this.pos[k + 2] += this.vel[k + 2] * dt;
       const gy = L.heightAt(this.pos[k], this.pos[k + 2]);
       if (this.pos[k + 1] < gy) {
-        // landed on top of something (not hit the side of a wall): maybe leave a splat
-        if (this.splat[i] && oy >= gy - 0.05 && Math.random() < 0.3) fx.decal(this.pos[k], gy, this.pos[k + 2], 0.15 + Math.random() * 0.35, this.base.subarray(k, k + 3));
+        const c = this.base.subarray(k, k + 3);
+        if (this.splat[i]) {
+          // landed on top of something: maybe leave a splat on the floor
+          if (oy >= gy - 0.05) { if (Math.random() < 0.3) fx.decal(this.pos[k], gy, this.pos[k + 2], 0.15 + Math.random() * 0.35, c); }
+          // flew into the side of a wall: splat on the wall
+          else if (Math.random() < WALL_SPLAT) fx.wallHit(ox, oz, this.pos[k], this.pos[k + 1], this.pos[k + 2], 0.12 + Math.random() * 0.25, c);
+        }
         this.life[i] = 0; this.pos[k + 1] = -9999; continue;
       }
       if (this.additive) {
@@ -88,25 +98,25 @@ export class FX {
     this.gore = new Particles(scene, GORE_MAX, false, 0.16);
     this.glow = new Particles(scene, GLOW_MAX, true, 0.22);
 
-    // floor splats
-    this.decals = []; this.decalNext = 0;
-    const dGeo = new THREE.CircleGeometry(0.5, 10); dGeo.rotateX(-Math.PI / 2);
+    // splats on floors and walls: hundreds of flat squares with the splat
+    // texture, all drawn in one go (an InstancedMesh). Each one has its own
+    // place, turn, size and colour. Hidden ones have size 0.
+    const dMat = new THREE.MeshStandardMaterial({
+      map: textures.splat, transparent: true, depthWrite: false, roughness: 0.25,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    });
+    this.decals = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), dMat, DECALS);
+    this.decals.frustumCulled = false;
+    this.decals.renderOrder = 1;
+    this.decalCount = 0;                         // how many splats ever made
+    this.decalInfo = [];                         // where each one is, so pools can grow
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
     for (let i = 0; i < DECALS; i++) {
-      const m = new THREE.Mesh(dGeo, new THREE.MeshStandardMaterial({ color: 0x400000, roughness: 0.3, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-      m.visible = false; m.renderOrder = 1;
-      scene.add(m); this.decals.push(m);
+      this.decals.setMatrixAt(i, zero);
+      this.decals.setColorAt(i, new THREE.Color(0, 0, 0));
+      this.decalInfo.push({ p: new THREE.Vector3(), q: new THREE.Quaternion(), s: 0 });
     }
-
-    // gibs
-    this.chunks = [];
-    const cGeo = new THREE.BoxGeometry(0.22, 0.16, 0.18);
-    const cMat = new THREE.MeshStandardMaterial({ map: textures.flesh, color: 0x8a3a30, roughness: 0.5 });
-    for (let i = 0; i < CHUNKS; i++) {
-      const m = new THREE.Mesh(cGeo, cMat);
-      m.visible = false; scene.add(m);
-      this.chunks.push({ mesh: m, vel: new THREE.Vector3(), spin: new THREE.Vector3(), life: 0 });
-    }
-    this.chunkNext = 0;
+    scene.add(this.decals);
 
     // tracers: thin glowing boxes stretched from gun to target
     this.tracers = [];
@@ -142,24 +152,55 @@ export class FX {
     }
   }
 
-  decal(x, y, z, size, c) {
-    const m = this.decals[this.decalNext]; this.decalNext = (this.decalNext + 1) % DECALS;
-    m.visible = true;
-    m.position.set(x, y + 0.02 + (this.decalNext % 7) * 0.002, z);
-    m.scale.setScalar(size * 2);
-    m.rotation.y = Math.random() * 6;
-    m.material.color.setRGB(c[0] * 0.7, c[1] * 0.7, c[2] * 0.7);
+  // A splat at (x, y, z) facing out along normal n (straight up for floors).
+  // Returns a ticket you can pass to growDecal to make it bigger later.
+  decal(x, y, z, size, c, n = UP) {
+    const ticket = this.decalCount++;
+    const i = ticket % DECALS, d = this.decalInfo[i];
+    // lift it a hair off the surface (newer ones a bit more) so they don't flicker
+    const lift = 0.012 + (ticket % 8) * 0.002;
+    d.p.set(x + n.x * lift, y + n.y * lift, z + n.z * lift);
+    d.q.setFromUnitVectors(FACE, n).multiply(spinQ.setFromAxisAngle(FACE, Math.random() * 6.3));
+    d.s = size * 2;
+    tmpColor.setRGB(c[0] * 0.7, c[1] * 0.7, c[2] * 0.7);
+    this.decals.setColorAt(i, tmpColor);
+    this.decals.instanceColor.needsUpdate = true;
+    this.placeDecal(i);
+    return ticket;
   }
 
-  gibs(p, n) {
-    for (let i = 0; i < n; i++) {
-      const c = this.chunks[this.chunkNext]; this.chunkNext = (this.chunkNext + 1) % CHUNKS;
-      c.mesh.visible = true; c.mesh.position.copy(p);
-      c.mesh.scale.setScalar(0.6 + Math.random() * 1.2);
-      c.vel.set((Math.random() - 0.5) * 14, 4 + Math.random() * 9, (Math.random() - 0.5) * 14);
-      c.spin.set(Math.random() * 15, Math.random() * 15, Math.random() * 15);
-      c.life = 4 + Math.random() * 2;
+  growDecal(ticket, size) {
+    if (this.decalCount - ticket > DECALS) return; // already reused for another splat
+    const i = ticket % DECALS;
+    this.decalInfo[i].s = size * 2;
+    this.placeDecal(i);
+  }
+
+  placeDecal(i) {
+    const d = this.decalInfo[i];
+    this.decals.setMatrixAt(i, tmpMatrix.compose(d.p, d.q, tmpScale.setScalar(d.s)));
+    this.decals.instanceMatrix.needsUpdate = true;
+  }
+
+  // Something flew from (ox, oz) into the wall at (x, y, z): splat on the
+  // face of that wall. We work out which side it came in through.
+  wallHit(ox, oz, x, y, z, size, c) {
+    const L = this.level;
+    if (L.heightAt(ox, z) <= y) {
+      // moving only along z is fine, so the wall was crossed along x
+      const cx = Math.floor(x / CELL), sx = x > ox ? 1 : -1;
+      this.decal(sx > 0 ? cx * CELL : (cx + 1) * CELL, y, z, size, c, tmpN.set(-sx, 0, 0));
+    } else {
+      const cz = Math.floor(z / CELL), sz = z > oz ? 1 : -1;
+      this.decal(x, y, sz > 0 ? cz * CELL : (cz + 1) * CELL, size, c, tmpN.set(0, 0, -sz));
     }
+  }
+
+  // Blood flying on from a wound: if a wall or floor is close behind, splat it.
+  sprayBehind(p, dir, reach, size, c = COLORS.blood) {
+    const hit = this.level.raycast(p, dir, reach);
+    if (!hit) return;
+    this.decal(p.x + dir.x * hit.t, p.y + dir.y * hit.t, p.z + dir.z * hit.t, size, c, tmpN.set(hit.nx, hit.ny, hit.nz));
   }
 
   tracer(from, to, color, width) {
@@ -188,23 +229,6 @@ export class FX {
   update(dt) {
     this.gore.update(dt, this);
     this.glow.update(dt, this);
-    const L = this.level;
-    for (const c of this.chunks) {
-      if (c.life <= 0) continue;
-      c.life -= dt;
-      if (c.life <= 0) { c.mesh.visible = false; continue; }
-      c.vel.y -= 22 * dt;
-      const m = c.mesh;
-      m.position.addScaledVector(c.vel, dt);
-      m.rotation.x += c.spin.x * dt; m.rotation.y += c.spin.y * dt;
-      const gy = L.heightAt(m.position.x, m.position.z);
-      if (m.position.y < gy + 0.08) {
-        if (gy > 2 && m.position.y < gy - 0.5) { c.vel.x *= -0.4; c.vel.z *= -0.4; m.position.addScaledVector(c.vel, dt * 2); continue; }
-        m.position.y = gy + 0.08;
-        if (c.vel.y < -3) this.decal(m.position.x, gy, m.position.z, 0.3 + Math.random() * 0.3, COLORS.blood);
-        c.vel.y *= -0.3; c.vel.x *= 0.6; c.vel.z *= 0.6; c.spin.multiplyScalar(0.6);
-      }
-    }
     for (const t of this.tracers) {
       if (t.life <= 0) continue;
       t.life -= dt;

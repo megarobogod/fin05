@@ -329,6 +329,35 @@ function bloater() {
   return R.finish();
 }
 
+// ---------- GORE: loose bits for when things burst or lose a limb ----------
+let goreCache = null;
+export function goreGeos() {
+  if (goreCache) return goreCache;
+  seed = 900;
+  const MEAT = 0x7a1c16, MEAT2 = 0x40100c;
+  const chunks = [
+    part(ball(0.12, 1.2, 0.8, 1), { jit: 0.03, lumps: 0.04, freq: 8, c: MEAT, spot: MEAT2, spotAmt: 0.5 }),         // meat
+    part(ball(0.1, 0.9, 1.3, 0.8), { jit: 0.03, lumps: 0.03, freq: 8, c: 0x8a2a22, spot: 0xb05048, spotAmt: 0.3 }),  // meat
+    part(ball(0.13, 1.1, 0.7, 1.2), { jit: 0.03, lumps: 0.05, freq: 6, c: ROT, spot: MEAT, spotAmt: 0.4 }),         // rotten lump
+    part(spike(0.035, 0.28, 4), { jit: 0.01, r: [0.3, 0, 0.2], c: BONE }),                                          // bone shard
+    part(ring(0.13, 0.022, PI * 0.8, 7), { c: BONE }),                                                             // a rib
+    part(limb(0.045, 0.04, 0.34, 6), { jit: 0.015, lumps: 0.02, c: 0xa04a48, spot: MEAT2 }),                      // gut
+  ];
+  // centre each one so it spins round its middle
+  for (const g of chunks) {
+    g.computeBoundingBox();
+    const c = g.boundingBox.getCenter(new THREE.Vector3());
+    g.translate(-c.x, -c.y, -c.z);
+  }
+  // the torn end where an arm or head came off: raw meat with bone poking out
+  const stump = mergeGeometries([
+    part(ball(0.1, 1, 0.55, 1), { jit: 0.02, c: MEAT, spot: 0xb02a20 }),
+    part(post(0.028, 0.02, 0.1, 5), { c: BONE }),
+  ]);
+  goreCache = { chunks, stump };
+  return goreCache;
+}
+
 const BUILDERS = { husk, spitter, bloater };
 const templates = {};
 

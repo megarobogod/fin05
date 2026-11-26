@@ -19,6 +19,7 @@ const GRAVITY = 28;
 const CLOUD_TIME = 5;       // how long the gas from a bloater lingers
 const CLOUD_R = 3.5;
 const CLOUD_DPS = 10;
+const LIMB_DAMAGE = 0.4;    // damage on one arm (as a share of full health) that takes it off
 
 // Turn smoothly from angle a towards angle b.
 function turn(a, b, k) {
@@ -63,6 +64,7 @@ export class Enemies {
       state: 'spawn', stateT: 0.8, stun: 0, flash: 0, onGround: true,
       los: false, losT: 0, fireT: 1 + Math.random() * 2, leapCd: 1 + Math.random() * 2,
       strafe: Math.random() < 0.5 ? 1 : -1, swell: 0, dead: false, hitPlayer: false,
+      limbDmg: { L: 0, R: 0 },
     };
     model.group.position.set(x, -3, z);
     this.list.push(e);
@@ -100,22 +102,38 @@ export class Enemies {
     e.flash = 1;
     if (info.dir && info.knock) { e.vel.x += info.dir.x * info.knock; e.vel.z += info.dir.z * info.knock; }
     this.game.onDamage(e, amount, info);
-    if (e.hp <= 0) this.kill(e, info);
+    if (e.hp <= 0) { this.kill(e, info); return; }
+    // Shot in the arm (high up, off to one side) enough times: it comes off.
+    if (info.point && !info.head && e.type !== 'bloater') {
+      const up = info.point.y - e.pos.y;
+      // how far to the creature's left the bullet hit (its left is +x on the model)
+      const left = (info.point.x - e.pos.x) * Math.cos(e.yaw) - (info.point.z - e.pos.z) * Math.sin(e.yaw);
+      if (up > e.cfg.eye * 0.55 && Math.abs(left) > 0.12) {
+        const side = left > 0 ? 'L' : 'R';
+        e.limbDmg[side] += amount;
+        if (e.limbDmg[side] > e.cfg.hp * LIMB_DAMAGE && this.game.gore.loseArm(e, side, info.dir)) this.game.addStyle(20, 'DISARMED');
+      }
+    }
   }
 
   kill(e, info = {}) {
     if (e.dead) return;
     e.dead = true;
-    const fx = this.game.fx;
-    this.game.scene.remove(e.model.group);
+    const fx = this.game.fx, gore = this.game.gore;
     const c = e.pos.clone(); c.y += e.type === 'bloater' ? 1.3 : 1.1;
     info.gib = info.weapon === 'blast' || e.hp < -25 || (info.weapon === 'shotgun' && info.dist < 4.5);
     const big = e.type === 'bloater' ? 2 : 1;
-    fx.burst(c, (info.gib ? 90 : 45) * big, [COLORS.blood, COLORS.rot, COLORS.dark], info.gib ? 11 : 7, { dir: info.dir });
+    fx.burst(c, (info.gib ? 110 : 55) * big, [COLORS.blood, COLORS.blood, COLORS.rot, COLORS.dark], info.gib ? 12 : 8, { dir: info.dir });
     fx.burst(c, 15 * big, COLORS.bile, 5, { glow: true, grav: 6 });
-    fx.decal(e.pos.x, this.game.level.heightAt(e.pos.x, e.pos.z) > e.pos.y + 0.1 ? 0 : e.pos.y, e.pos.z, 0.8 + Math.random() * 0.6 * big, Math.random() < 0.5 ? COLORS.blood : COLORS.rot);
-    if (info.gib) { fx.gibs(c, 6 * big); sfx.gib(); }
+    if (info.dir) for (let i = 0; i < (info.gib ? 4 : 2); i++) {
+      // blood thrown onto whatever is behind it
+      const d = new THREE.Vector3(info.dir.x + (Math.random() - 0.5) * 0.5, info.dir.y + Math.random() * 0.3 - 0.2, info.dir.z + (Math.random() - 0.5) * 0.5).normalize();
+      fx.sprayBehind(c, d, 6, 0.4 + Math.random() * 0.5);
+    }
     this.game.onKill(e, info);
+    // bloaters always burst; big hits tear things apart; the rest drop dead
+    if (info.gib || e.type === 'bloater') { gore.gib(e, info); sfx.gib(); }
+    else { gore.corpse(e, info); gore.screenSplat(c, 3.5, 0.7); }
     if (e.type === 'bloater') this.explode(c, e.cfg.blastR, e.cfg.blastDmg, e);
   }
 

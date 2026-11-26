@@ -8,6 +8,7 @@ import { Level } from './level.js';
 import { Player, PLAYER } from './player.js';
 import { Enemies } from './enemies.js';
 import { FX } from './fx.js';
+import { Gore } from './gore.js';
 import { HUD } from './hud.js';
 import { ViewModel } from './viewmodel.js';
 import { audio, sfx, initAudio, setMusic, setMuted } from './audio.js';
@@ -65,6 +66,7 @@ const game = {
 };
 game.level = new Level(scene);
 game.fx = new FX(scene, game.level);
+game.gore = new Gore(game);
 game.enemies = new Enemies(game);
 game.player = new Player(game);
 game.vm = new ViewModel();
@@ -261,7 +263,7 @@ document.addEventListener('pointerlockchange', () => {
     game.state = 'paused';
     input.fire = false;
     setMusic(false);
-    document.getElementById('startText').textContent = 'PAUSED Â· CLICK TO CONTINUE';
+    document.getElementById('startText').textContent = 'PAUSED · CLICK TO CONTINUE';
     overlay.classList.remove('hidden');
   }
 });
@@ -272,7 +274,7 @@ function showEnd(title, sub) {
   document.getElementById('endSub').textContent = sub;
   const t = Math.floor(game.time);
   document.getElementById('endStats').innerHTML =
-    `Score <b>${game.score.toLocaleString()}</b> Â· Kills <b>${game.kills}</b> Â· Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
+    `Score <b>${game.score.toLocaleString()}</b> · Kills <b>${game.kills}</b> · Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
   setTimeout(() => endScreen.classList.remove('hidden'), 900);
 }
 endScreen.addEventListener('click', () => location.reload());
@@ -290,6 +292,7 @@ function update(dt) {
   game.player.update(dt, input);
   game.enemies.update(dt);
   game.fx.update(dt);
+  game.gore.update(dt);
   updatePickups(dt);
   updateWaves(dt);
   const r = game.rankIndex();

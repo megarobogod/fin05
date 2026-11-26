@@ -40,15 +40,23 @@ function fireRay(game, w, drawTracer) {
   const wall = game.level.raycast(o, d, w.range);
   const maxT = wall ? wall.t : w.range;
   const hit = game.enemies.hitscan(o, d, maxT);
-  const t = hit ? hit.t : maxT;
+  // missed every creature? maybe it hit a body lying on the floor
+  const body = hit ? null : game.gore.hitCorpse(o, d, maxT);
+  const t = hit ? hit.t : body ? body.t : maxT;
   end.copy(o).addScaledVector(d, t);
   if (drawTracer) game.fx.tracer(muzzle, end, w.key === 'rifle' ? 0x60f0ff : 0xffa040, w.key === 'rifle' ? 0.04 : 0.025);
   if (hit) {
     let dmg = w.dmg;
     if (w.falloff && t > w.falloff) dmg *= Math.max(0.25, 1 - (t - w.falloff) / 35);
     if (hit.head) dmg *= w.headMult;
+    // blood: a puff where it went in, and a spray out of the back
     game.fx.burst(end, hit.head ? 14 : 7, [COLORS.blood, COLORS.rot], 5, { dir: d });
-    game.enemies.damage(hit.enemy, dmg, { fromPlayer: true, weapon: w.key, head: hit.head, dist: t, dir: d.clone(), knock: w.key === 'shotgun' ? 1.2 : 0.3 });
+    game.fx.burst(end, hit.head ? 16 : 8, [COLORS.blood, COLORS.dark], 11, { dir: d, life: 0.9 });
+    if (Math.random() < (w.pellets ? 0.2 : 0.5)) game.fx.sprayBehind(end, d, 5, 0.25 + Math.random() * 0.3);
+    game.enemies.damage(hit.enemy, dmg, { fromPlayer: true, weapon: w.key, head: hit.head, dist: t, dir: d.clone(), point: end.clone(), knock: w.key === 'shotgun' ? 1.2 : 0.3 });
+  } else if (body) {
+    game.fx.burst(end, 10, [COLORS.blood, COLORS.dark], 6, { dir: d });
+    game.gore.shootCorpse(body.corpse, w.dmg, d.clone());
   } else if (wall) {
     game.fx.burst(end, 6, COLORS.spark, 6, { glow: true, life: 0.25, grav: 20, dir: { x: wall.nx, y: wall.ny, z: wall.nz } });
   }
@@ -87,7 +95,9 @@ export function punch(game) {
       e.stun = 0.5;
       e.vel.y = e.type === 'bloater' ? 2 : 5; e.onGround = false;
       game.enemies.damage(e, PUNCH_DMG, { fromPlayer: true, weapon: 'punch', dir, knock: e.type === 'bloater' ? 6 : 16, dist });
-      game.fx.burst(new THREE.Vector3(e.pos.x, e.pos.y + 1.2, e.pos.z), 12, [COLORS.blood, COLORS.rot], 6, { dir });
+      const at = new THREE.Vector3(e.pos.x, e.pos.y + 1.2, e.pos.z);
+      game.fx.burst(at, 20, [COLORS.blood, COLORS.rot], 7, { dir });
+      game.gore.screenSplat(at, 4, 0.5);
       hitSomething = true;
       game.hitstop = Math.max(game.hitstop, 0.06);
       game.shake = Math.max(game.shake, 0.25);

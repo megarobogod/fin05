@@ -153,6 +153,36 @@ function dot(size, hard) {
   }, false);
 }
 
+// A blood splat: one ragged blob, droplets flung round it and a few streaks.
+// White on see-through; the decal colours it. Not colour-managed: it's a mask.
+function splat(size) {
+  const t = make(size, (g, s) => {
+    const r = rng(77), c = s / 2;
+    g.fillStyle = '#fff'; g.strokeStyle = '#fff';
+    // the main blob: a circle whose edge wobbles in and out
+    g.beginPath();
+    for (let i = 0; i <= 40; i++) {
+      const a = i / 40 * Math.PI * 2;
+      const rad = s * (0.2 + 0.06 * Math.sin(a * 3 + 1) + 0.04 * Math.sin(a * 7) + r() * 0.03);
+      g.lineTo(c + Math.cos(a) * rad, c + Math.sin(a) * rad);
+    }
+    g.fill();
+    // streaks and droplets thrown outwards
+    for (let i = 0; i < 9; i++) {
+      const a = r() * Math.PI * 2, d0 = s * 0.18, d1 = s * (0.3 + r() * 0.17);
+      g.lineWidth = 2 + r() * 5; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(c + Math.cos(a) * d0, c + Math.sin(a) * d0); g.lineTo(c + Math.cos(a) * d1, c + Math.sin(a) * d1); g.stroke();
+      g.beginPath(); g.arc(c + Math.cos(a) * d1, c + Math.sin(a) * d1, 2 + r() * 5, 0, 7); g.fill();
+    }
+    for (let i = 0; i < 26; i++) {
+      const a = r() * Math.PI * 2, d = s * (0.22 + r() * 0.25);
+      g.beginPath(); g.arc(c + Math.cos(a) * d, c + Math.sin(a) * d, 1 + r() * 3.5, 0, 7); g.fill();
+    }
+  }, false);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
 export const textures = {
   ground: ground(),
   wall: wall(),
@@ -161,4 +191,5 @@ export const textures = {
   flesh: flesh(),
   dot: dot(64, true),
   glow: dot(128, false),
+  splat: splat(128),
 };
