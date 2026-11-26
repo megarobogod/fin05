@@ -25,6 +25,8 @@ export const PLAYER = {
   slamJump: 1.6,        // jump just after a slam lands: this many times higher
   maxHP: 100,
   poolDamage: 14,       // per second, standing in rot
+  deepDamage: 80,       // per second, standing in deep rot...
+  deepSpeed: 6,         // ...where you can't move faster than this
   sens: 0.0022,         // mouse sensitivity
   maxShells: 40, startShells: 16,
 };
@@ -85,6 +87,18 @@ export class Player {
 
   heightAboveGround() {
     return this.pos.y - this.game.level.groundUnder(this.pos.x, this.pos.z, PLAYER.radius * 0.8, this.pos.y + PLAYER.step);
+  }
+
+  // Back on your feet at a checkpoint, as good as new.
+  respawn(pos, yaw) {
+    this.pos.copy(pos); this.vel.set(0, 0, 0);
+    this.yaw = yaw; this.pitch = 0; this.roll = 0;
+    this.hp = PLAYER.maxHP; this.dead = false;
+    this.onGround = true; this.sliding = false;
+    this.wallRun = null; this.mantle = null; this.slam = null;
+    this.dashCharges = PLAYER.dashCharges; this.dashT = 0; this.safeT = 1;
+    this.heat = 0; this.overheated = false;
+    this.shells = Math.max(this.shells, PLAYER.startShells);
   }
 
   eyePos(out) { return out.set(this.pos.x, this.pos.y + this.eyeH, this.pos.z); }
@@ -269,10 +283,15 @@ export class Player {
     if (this.onGround) this.wallRun = null;
     if (this.slam && this.onGround) this.landSlam();
 
-    // the rot burns
-    if (this.onGround && this.pos.y < 0.1 && g.level.isPool(this.pos.x, this.pos.z)) {
-      this.hurt(P.poolDamage * dt, null, true);
-      if (Math.random() < 0.3) g.fx.glow.emit(this.pos.x, 0.1, this.pos.z, 0, 2, 0, [0.6, 0.9, 0.1], 0.5, 0, false);
+    // the rot burns. Deep rot burns much worse and drags at your legs.
+    const rot = this.onGround && this.pos.y < 0.1 ? g.level.isPool(this.pos.x, this.pos.z) : 0;
+    if (rot) {
+      this.hurt((rot === 2 ? P.deepDamage : P.poolDamage) * dt, null, true);
+      if (rot === 2) {
+        const h = Math.hypot(this.vel.x, this.vel.z);
+        if (h > P.deepSpeed) { this.vel.x *= P.deepSpeed / h; this.vel.z *= P.deepSpeed / h; }
+      }
+      if (Math.random() < (rot === 2 ? 0.8 : 0.3)) g.fx.glow.emit(this.pos.x, 0.1, this.pos.z, (Math.random() - 0.5) * 2, 2, (Math.random() - 0.5) * 2, rot === 2 ? [1, 0.6, 0.1] : [0.6, 0.9, 0.1], 0.5, 0, false);
     }
 
     // eye height dips when sliding

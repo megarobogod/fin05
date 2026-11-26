@@ -1,4 +1,5 @@
-﻿// main.js - sets everything up and runs the game: waves, style, the loop.
+﻿// main.js - sets everything up and runs the game: the level, style, dying
+// and coming back, pickups, the loop.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -11,6 +12,8 @@ import { FX } from './fx.js';
 import { Gore } from './gore.js';
 import { HUD } from './hud.js';
 import { ViewModel } from './viewmodel.js';
+import { Director } from './director.js';
+import { LEVEL1 } from './levels/level1.js';
 import { audio, sfx, initAudio, setMusic, setMuted } from './audio.js';
 
 // ---- Tuning ----
@@ -20,13 +23,9 @@ const BLOOD_HEAL = 0.3;       // ...by this much of the damage
 const KILL_HEAL = 10;         // and close kills heal this much more
 const STYLE_PER_RANK = 100;
 const RANKS = ['CONTAINED', 'CLEANSING', 'PURGING', 'SCORCHING', 'ERADICATING', 'EXTERMINATOR'];
-const MAX_ALIVE = 14;         // creatures on the field at once
-const WAVES = [
-  { husk: 6 },
-  { husk: 8, spitter: 2 },
-  { husk: 10, spitter: 4, bloater: 1 },
-  { husk: 14, spitter: 5, bloater: 3 },
-];
+const RESPAWN_TIME = 2.2;     // seconds dead before you're back at the checkpoint
+const SHELLS_PICKUP = 6;
+const HEALTH_PICKUP = 40;
 
 const TEST = location.hash === '#test';
 
@@ -58,13 +57,12 @@ composer.addPass(new OutputPass());
 
 // ---------- The game object: everything hangs off this ----------
 const game = {
-  scene, camera, renderer, RANKS, WAVES, test: TEST,
+  scene, camera, renderer, RANKS, test: TEST,
   state: 'menu', time: 0, hitstop: 0, shake: 0, fovKick: 0, muzzle: 0, freeze: false,
-  style: 0, bestRank: 0, score: 0, kills: 0,
-  wave: -1, queue: [], spawnT: 0, breakT: 0,
+  style: 0, bestRank: 0, score: 0, kills: 0, deaths: 0, respawnT: 0,
   pickups: [], multi: { t: -9, n: 0 },
 };
-game.level = new Level(scene);
+game.level = new Level(scene, LEVEL1);
 game.fx = new FX(scene, game.level);
 game.gore = new Gore(game);
 game.enemies = new Enemies(game);
@@ -121,13 +119,25 @@ game.onKill = (e, info) => {
   if (e.type !== 'husk' || Math.random() < 0.35) game.spawnPickup(e.pos);
 };
 
+// You died: a moment to take it in, then back to the last checkpoint.
 game.onPlayerDeath = () => {
   game.state = 'dead';
-  setMusic(false);
-  showEnd('YOU ROTTED', 'The planet keeps you.');
+  game.deaths++;
+  game.respawnT = RESPAWN_TIME;
+  game.style = 0;
+  game.hud.banner('YOU ROTTED', 'back to the last checkpoint', RESPAWN_TIME);
 };
 
-// ---------- Pickups (scattergun shells) ----------
+// You reached the evac beacon.
+game.win = () => {
+  if (game.state !== 'play') return;
+  game.state = 'won';
+  setMusic(false);
+  sfx.wave();
+  showEnd(`${LEVEL1.name} CLEARED`, 'Evac inbound. The rot will remember you.');
+};
+
+// ---------- Pickups (scattergun shells and health) ----------
 // a little bundle of three glowing shells
 const shellGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.3, 8);
 const capGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.07, 8);
@@ -143,11 +153,26 @@ function shellBundle() {
   g.rotation.x = 0.4;
   return g;
 }
-game.spawnPickup = (pos) => {
-  const m = shellBundle();
-  m.position.set(pos.x, Math.max(pos.y, game.level.heightAt(pos.x, pos.z) < 0.5 ? 0 : pos.y) + 0.5, pos.z);
+// a glowing green med cell with a white cross on it
+const medMat = new THREE.MeshStandardMaterial({ color: 0x60e040, emissive: 0x40ff30, emissiveIntensity: 0.9, flatShading: true });
+const crossMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+function medCell() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.22), medMat));
+  for (const [w, h] of [[0.34, 0.1], [0.1, 0.34]]) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.24), crossMat);
+    g.add(c);
+  }
+  return g;
+}
+
+// type: 'shells' or 'health'. Permanent ones (placed in the level) never
+// disappear; ones dropped by creatures go after 40 seconds.
+game.spawnPickup = (pos, type = 'shells', permanent = false) => {
+  const m = type === 'health' ? medCell() : shellBundle();
+  m.position.set(pos.x, Math.max(pos.y, game.level.heightAt(pos.x, pos.z) < 0.5 ? 0 : pos.y) + 0.6, pos.z);
   scene.add(m);
-  game.pickups.push({ mesh: m, t: 0, base: m.position.y });
+  game.pickups.push({ mesh: m, type, permanent, t: 0, base: m.position.y });
 };
 function updatePickups(dt) {
   const p = game.player;
@@ -155,65 +180,27 @@ function updatePickups(dt) {
     k.t += dt;
     const m = k.mesh;
     m.rotation.y += dt * 3;
+    const wanted = k.type === 'health' ? p.hp < PLAYER.maxHP : p.shells < PLAYER.maxShells;
     const dx = p.pos.x - m.position.x, dy = p.pos.y + 0.8 - m.position.y, dz = p.pos.z - m.position.z;
     const d = Math.hypot(dx, dy, dz);
-    if (d < 5 && p.shells < PLAYER.maxShells) {
+    if (d < 5 && wanted && !p.dead) {
       // pulled towards you
       m.position.x += dx / d * dt * 14; m.position.y += dy / d * dt * 14; m.position.z += dz / d * dt * 14;
     } else m.position.y = k.base + Math.sin(k.t * 3) * 0.15;
-    if (d < 1.3 && p.shells < PLAYER.maxShells) {
-      p.shells = Math.min(PLAYER.maxShells, p.shells + 6);
-      game.hud.feed('+6 SHELLS', 'ammo');
+    if (d < 1.3 && wanted && !p.dead) {
+      if (k.type === 'health') { p.heal(HEALTH_PICKUP); game.hud.feed(`+${HEALTH_PICKUP} HEALTH`); }
+      else { p.shells = Math.min(PLAYER.maxShells, p.shells + SHELLS_PICKUP); game.hud.feed(`+${SHELLS_PICKUP} SHELLS`, 'ammo'); }
       sfx.pickup();
       k.dead = true;
     }
-    if (k.t > 40) k.dead = true;
+    if (k.t > 40 && !k.permanent) k.dead = true;
     if (k.dead) scene.remove(m);
   }
   game.pickups = game.pickups.filter(k => !k.dead);
 }
 
-// ---------- Waves ----------
-function startWave(i) {
-  game.wave = i;
-  game.queue = [];
-  for (const [type, n] of Object.entries(WAVES[i])) for (let k = 0; k < n; k++) game.queue.push(type);
-  for (let k = game.queue.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [game.queue[k], game.queue[j]] = [game.queue[j], game.queue[k]]; }
-  game.spawnT = 1.2;
-  game.hud.banner(`WAVE ${i + 1}`, i === 0 ? 'PURGE THE ROT' : i === WAVES.length - 1 ? 'FINAL WAVE' : 'THEY KEEP COMING');
-  sfx.wave();
-}
-
-function pickSpawn() {
-  const p = game.player.pos;
-  const far = game.level.spawns.filter(s => s.distanceTo(p) > 18);
-  const list = far.length ? far : game.level.spawns;
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function updateWaves(dt) {
-  if (game.breakT > 0) {
-    game.breakT -= dt;
-    if (game.breakT <= 0) startWave(game.wave + 1);
-    return;
-  }
-  game.spawnT -= dt;
-  if (game.queue.length && game.spawnT <= 0 && game.enemies.list.length < MAX_ALIVE) {
-    const s = pickSpawn();
-    game.enemies.spawn(game.queue.pop(), s.x + (Math.random() - 0.5) * 2, s.z + (Math.random() - 0.5) * 2);
-    game.spawnT = 0.35 + Math.random() * 0.6;
-  }
-  if (!game.queue.length && game.enemies.list.length === 0) {
-    if (game.wave >= WAVES.length - 1) {
-      game.state = 'won';
-      setMusic(false);
-      showEnd('SECTOR PURGED', 'The rot is gone from here. For now.');
-    } else {
-      game.breakT = 4;
-      game.hud.banner('WAVE CLEARED', 'more rot is rising');
-    }
-  }
-}
+// ---------- The level script (hints, fights, doors, checkpoints) ----------
+game.director = new Director(game, LEVEL1);
 
 // ---------- Input ----------
 const input = { keys: new Set(), pressed: new Set(), mx: 0, my: 0, wheel: 0, fire: false, firePressed: false, punch: false };
@@ -252,7 +239,7 @@ function start() {
     const r = canvas.requestPointerLock();
     if (r && r.catch) r.catch(() => {});
   }
-  if (game.state === 'menu') { game.state = 'play'; startWave(0); }
+  if (game.state === 'menu') { game.state = 'play'; game.director.begin(); }
   else if (game.state === 'paused') game.state = 'play';
   overlay.classList.add('hidden');
   game.hud.show(true);
@@ -276,13 +263,24 @@ function showEnd(title, sub) {
   document.getElementById('endSub').textContent = sub;
   const t = Math.floor(game.time);
   document.getElementById('endStats').innerHTML =
-    `Score <b>${game.score.toLocaleString()}</b> · Kills <b>${game.kills}</b> · Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
+    `Score <b>${game.score.toLocaleString()}</b> · Kills <b>${game.kills}</b> · Deaths <b>${game.deaths}</b> · Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
   setTimeout(() => endScreen.classList.remove('hidden'), 900);
 }
 endScreen.addEventListener('click', () => location.reload());
 
 // ---------- Update and draw ----------
 function update(dt) {
+  if (game.state === 'dead') {
+    // the world keeps going for a moment, then you're back at the checkpoint
+    game.enemies.update(dt);
+    game.fx.update(dt);
+    game.gore.update(dt);
+    game.level.updateDoors(dt);
+    game.respawnT -= dt;
+    if (game.respawnT <= 0) { game.director.respawn(); game.state = 'play'; }
+    input.pressed.clear();
+    return;
+  }
   if (game.state !== 'play') return;
   if (game.hitstop > 0) {
     // a split-second freeze on big hits: the world stops, you can still look
@@ -296,7 +294,8 @@ function update(dt) {
   game.fx.update(dt);
   game.gore.update(dt);
   updatePickups(dt);
-  updateWaves(dt);
+  game.level.updateDoors(dt);
+  game.director.update(dt);
   const r = game.rankIndex();
   game.style = Math.max(0, game.style - (6 + r * 5) * dt);
   const target = Math.min(1, game.enemies.list.length / 12 * 0.5 + r / (RANKS.length - 1) * 0.6);

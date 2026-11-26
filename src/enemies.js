@@ -405,6 +405,13 @@ export class Enemies {
     this.clouds = this.clouds.filter(c => c.t > 0);
   }
 
+  // Take every creature, orb and gas cloud away (when you respawn).
+  clear() {
+    for (const e of this.list) { e.dead = true; this.game.scene.remove(e.model.group); }
+    for (const o of this.orbs) this.game.scene.remove(o.mesh);
+    this.list = []; this.orbs = []; this.clouds = [];
+  }
+
   // Bloaters swelling and spitters' orbs: things the punch can interact with.
   parryable() { return this.orbs.filter(o => !o.friendly && !o.dead); }
 }

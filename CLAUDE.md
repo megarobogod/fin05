@@ -15,9 +15,13 @@ A 3D boomer-shooter FPS for a parent and their son to build together and learn f
 ## Game design (from the son's prompt)
 - A fast-paced 3D boomer shooter in the genre of ULTRAKILL and I AM YOUR BEAST (take the genre's feel, don't copy either game).
 - You're a sci-fi space soldier sent to a hostile, dying alien planet overrun by rot and disease, to exterminate it.
+- Not wave-based: hand-made levels you move through, with fights in rooms that lock until you've cleared them.
 
 ## How it's built
-- **Arena** (`level.js`): a text map (key at the top of the file), 4 m squares. Walls, pillars, blocks you can jump on, rot pools that burn you, hives where creatures crawl out. Sky dome, dying sun, rock spires and giant tendrils outside, drifting spores.
+- **Levels** (`levels/level1.js`): each level is a text map (the key is at the top of the file; 4 m squares) plus a `triggers` table. Lowercase letters on the map are trigger squares; walking onto one shows a `hint`, sets the `goal`, saves a `checkpoint`, and/or starts a `fight` (waves of creatures from that letter's UPPERCASE hives; `lock` doors shut, `unlock` doors open when it's won). Digits are doors, `X` the evac beacon, `$`/`+` shell/health pickups, `H` a 6 m wall, `%` deep rot (80 dmg/s and slows you).
+- **Level 1, LANDFALL**: a tutorial in order: move, jump the rot, climb a ledge, jump+dash over deep rot, fight (shoot), slide-jump a gap, spitter fight (parry), wall-run a deep-rot corridor, slam fight then slam-jump up the high wall, final arena of everything, beacon. Checkpoints before each fight and lesson.
+- **Director** (`director.js`): runs the triggers, fights (waves, `LEFT` count), doors, pickups, the beacon, and respawning at the last checkpoint (a fight you died in resets). Objective text at the top, hints at the bottom (`hud.hint`, `[KEY]` draws a keycap).
+- **World** (`level.js`): builds the map: walls (only the ones you can see), blocks, rot pools with a light over each patch, blast doors that sink into the floor (`setDoor`, animated in `updateDoors` every game step), hives, the beacon beam. Sky dome, dying sun, rock spires and giant tendrils outside, drifting spores. Keep pool materials rough: glossy pools mirror the sun into a blinding bloom glare.
 - **Collision** (`level.js` `moveBody`): bodies are circles against the grid of square heights, moved in small steps; you can step up 0.45 m. `raycast` walks the grid (DDA) for bullets and line of sight.
 - **Path map** (`updateFlow`/`flowDir`): a flood fill from the player's square; creatures that can't see you walk downhill on it.
 - **Movement** (`player.js` `PLAYER`): momentum running, jump, wall jumps (3 before landing), Shift dash (3 charges, you can't be hit while dashing), C/Ctrl slide (jump out of it to keep the speed). Air steering never slows you.
@@ -26,7 +30,7 @@ A 3D boomer-shooter FPS for a parent and their son to build together and learn f
 - **Creatures** (`enemies.js` `TYPES`): husk (rushes, claws, leaps), spitter (keeps distance, spits 3 dodgeable bile orbs), bloater (swells and bursts near you; bursting hurts other creatures too, chains, and leaves rot gas).
 - **Blood heals** (`main.js` `BLOOD_RANGE`, `BLOOD_HEAL`, `KILL_HEAL`): damage you do up close heals you, so the game pushes you forward.
 - **Style** (`main.js` `RANKS`): kills, headshots, gibs, parries, dodges, mid-air and multi-kills fill a meter that drains; ranks CONTAINED to EXTERMINATOR multiply your score. Getting hit costs style.
-- **Waves** (`main.js` `WAVES`): 4 waves, up to `MAX_ALIVE` creatures at once; clear them all to win.
+- **Dying** (`main.js` `onPlayerDeath`): a 2 s pause, then back at the last checkpoint with full health. Deaths are counted on the end screen.
 - **Juice**: hitstop on kills/parries, screen shake, FOV widens with speed, bloom, blood droplets, tracers (`fx.js`).
 - **Splats** (`fx.js` `decal`): one InstancedMesh of squares with a splat texture, on floors AND walls (each has its own facing). Droplets that fly into a wall splat on its face (`wallHit`); hits spray onto whatever is close behind (`sprayBehind`). `DECALS` is how many before the oldest get reused.
 - **Gore** (`gore.js`): kills drop a **corpse** that tips over away from the hit, slides, bleeds and grows a pool, then sinks after `CORPSE_TIME`. Bullets hit corpses too and burst them at `CORPSE_HP`. Headshot kills take the **head** off; enough damage high on one side takes that **arm** off (`LIMB_DAMAGE` in `enemies.js`, +DISARMED style). Severing (`sever`) lifts a joint off the skeleton and throws it, leaving a meat stump that pumps blood. Big kills and every bloater **gib**: all the limbs fly off plus low-poly meat/bone/gut chunks (`goreGeos` in `models.js`). Up-close kills and punches splatter **blood on your visor** (a canvas over the game).
@@ -35,6 +39,6 @@ A 3D boomer-shooter FPS for a parent and their son to build together and learn f
 - **Sound** (`audio.js`): Web Audio synth effects and a 168 BPM soundtrack that gets heavier with more creatures and a higher style rank. M mutes.
 
 ## Ideas for next
-- More levels: hive caverns, a dead colony, a boss.
+- More levels after LANDFALL: hive caverns, a dead colony, a boss. A level select / "next level" on the end screen.
 - A grappling hook or a rocket launcher.
 - Enemy variety: flyers, an armoured brute.

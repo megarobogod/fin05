@@ -100,6 +100,7 @@ export const sfx = {
   gib() { noise(0.45, { freq: 1500, gain: 0.9, sweepTo: 80 }); tone(70, 0.3, { gain: 0.7, slideTo: 30 }); },
   splat(v = 1) { noise(0.12, { type: 'bandpass', freq: 380 + Math.random() * 200, q: 1.5, gain: 0.35, sweepTo: 150 }, v); },
   sever() { noise(0.22, { type: 'bandpass', freq: 900, q: 1, gain: 0.6, sweepTo: 250 }); tone(90, 0.15, { gain: 0.4, slideTo: 40 }); },
+  door() { tone(45, 1.1, { type: 'sawtooth', gain: 0.25, slideTo: 38, filter: 300 }); noise(1, { type: 'bandpass', freq: 220, q: 0.8, gain: 0.35 }); },
   wallStep() { noise(0.04, { type: 'highpass', freq: 2200 + Math.random() * 800, gain: 0.18 }); },
   mantle() { noise(0.12, { type: 'bandpass', freq: 500, q: 1, gain: 0.35 }); tone(150, 0.1, { gain: 0.18, slideTo: 230 }); },
   dive() { noise(0.3, { type: 'bandpass', freq: 400, q: 1, gain: 0.35, sweepTo: 2500 }); },

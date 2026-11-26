@@ -2,6 +2,8 @@
 
 A fast 3D boomer shooter in the browser. You're a space soldier sent to a dying alien planet to burn out the rot.
 
+Level 1, **LANDFALL**, teaches every move as you go, through locked-room fights, to the evac beacon. Levels live in `src/levels/` as text maps you can edit.
+
 Plain HTML, CSS and JavaScript with Three.js. No build step.
 
 ## Run it locally

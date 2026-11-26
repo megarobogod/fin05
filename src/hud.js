@@ -7,10 +7,10 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['hud', 'hpNum', 'hpFill', 'dash', 'weaponName', 'ammo', 'heatFill', 'heatBar', 'rank', 'styleFill', 'feed', 'banner', 'bannerTitle', 'bannerSub', 'wave', 'score', 'hurt', 'healflash', 'hitmarker'])
+    for (const id of ['hud', 'hpNum', 'hpFill', 'dash', 'weaponName', 'ammo', 'heatFill', 'heatBar', 'rank', 'styleFill', 'feed', 'banner', 'bannerTitle', 'bannerSub', 'wave', 'hint', 'score', 'hurt', 'healflash', 'hitmarker'])
       this.el[id] = $(id);
     this.pips = [...this.el.dash.children];
-    this.hurtA = 0; this.healA = 0; this.hitA = 0; this.bannerT = 0; this.lastRank = -1;
+    this.hurtA = 0; this.healA = 0; this.hitA = 0; this.bannerT = 0; this.hintT = 0; this.lastRank = -1;
   }
 
   show(on) { this.el.hud.classList.toggle('hidden', !on); }
@@ -27,6 +27,14 @@ export class HUD {
     while (this.el.feed.children.length > 6) this.el.feed.lastChild.remove();
     setTimeout(() => d.classList.add('fade'), 1600);
     setTimeout(() => d.remove(), 2400);
+  }
+
+  // A tip at the bottom of the screen. [KEY] is drawn as a key.
+  hint(text, time = 16) {
+    const safe = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+    this.el.hint.innerHTML = safe.replace(/\[([^\]]+)\]/g, '<kbd>$1</kbd>');
+    this.el.hint.classList.remove('on'); void this.el.hint.offsetWidth; this.el.hint.classList.add('on');
+    this.hintT = time;
   }
 
   banner(title, sub = '', time = 2.5) {
@@ -62,8 +70,8 @@ export class HUD {
     if (r !== this.lastRank) { e.rank.classList.remove('pop'); void e.rank.offsetWidth; e.rank.classList.add('pop'); this.lastRank = r; }
 
     e.score.textContent = g.score.toLocaleString();
-    const left = g.queue.length + g.enemies.list.length;
-    e.wave.textContent = g.wave >= 0 ? `WAVE ${g.wave + 1}/${g.WAVES.length}  ·  ${left} LEFT` : '';
+    e.wave.textContent = g.director.objective();
+    if (this.hintT > 0) { this.hintT -= dt; if (this.hintT <= 0) e.hint.classList.remove('on'); }
 
     this.hurtA = Math.max(0, this.hurtA - dt * 1.5);
     this.healA = Math.max(0, this.healA - dt * 1.2);

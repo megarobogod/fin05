@@ -42,6 +42,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #banner p { margin: 0; font-size: 1.2rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
 
 #wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 1.1rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
+#hint { position: absolute; bottom: 120px; left: 50%; transform: translate(-50%, 10px); width: min(720px, calc(100% - 32px)); text-align: center;
+  font-family: system-ui, "Segoe UI", sans-serif; font-size: 1.05rem; letter-spacing: 0; color: var(--ink); background: rgba(10, 12, 6, 0.72);
+  border-left: 3px solid var(--rot); padding: 10px 16px; opacity: 0; transition: opacity 0.4s, transform 0.4s; }
+#hint.on { opacity: 1; transform: translate(-50%, 0); }
+#hint kbd { display: inline-block; font-family: var(--heavy); font-size: 0.95rem; letter-spacing: 0.05em; color: #10120a; background: var(--rot);
+  border-radius: 3px; padding: 0 6px; margin: 0 1px; box-shadow: 0 2px 0 #6a8010; }
 #score { position: absolute; top: 14px; right: 20px; font-size: 1.6rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
 
 #stylebox { position: absolute; top: 60px; right: 20px; width: min(260px, 40vw); text-align: right; }

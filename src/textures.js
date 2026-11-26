@@ -118,6 +118,34 @@ function block() {
   });
 }
 
+// Blast door: dark steel plates, rivets, and a band of hazard stripes.
+function door() {
+  return make(256, (g, s) => {
+    const r = rng(53);
+    g.fillStyle = '#2c3034'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 40; i++) spot(g, s, r() * s, r() * s, 10 + r() * 30, r() < 0.5 ? [20, 22, 24] : [70, 76, 80], 0.3);
+    // two plates with a seam between them
+    g.strokeStyle = 'rgba(8,10,12,0.95)'; g.lineWidth = 6;
+    g.strokeRect(0, 0, s, s);
+    g.beginPath(); g.moveTo(0, s / 2); g.lineTo(s, s / 2); g.stroke();
+    // hazard stripes along the bottom of each plate
+    for (const y0 of [s / 2 - 34, s - 34]) {
+      g.save();
+      g.beginPath(); g.rect(6, y0, s - 12, 26); g.clip();
+      g.fillStyle = '#c8a020'; g.fillRect(6, y0, s - 12, 26);
+      g.fillStyle = '#141414';
+      for (let x = -40; x < s; x += 32) { g.beginPath(); g.moveTo(x, y0 + 26); g.lineTo(x + 16, y0 + 26); g.lineTo(x + 42, y0); g.lineTo(x + 26, y0); g.fill(); }
+      g.restore();
+    }
+    // rivets
+    g.fillStyle = 'rgba(150,160,165,0.7)';
+    for (let x = 14; x < s; x += 38) for (const y of [12, s / 2 + 12]) { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }
+    // rot creeping up from the bottom
+    for (let i = 0; i < 10; i++) spot(g, s, r() * s, s - r() * 20, 6 + r() * 16, [90, 110, 30], 0.5);
+    grain(g, s, 16, r);
+  });
+}
+
 // Glowing rot goo for the pools.
 function goo() {
   return make(256, (g, s) => {
@@ -187,6 +215,7 @@ export const textures = {
   ground: ground(),
   wall: wall(),
   block: block(),
+  door: door(),
   goo: goo(),
   flesh: flesh(),
   dot: dot(64, true),
