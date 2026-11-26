@@ -1,96 +1,24 @@
-// enemies.js - the rot creatures: how they look, think, move and die.
+﻿// enemies.js - the rot creatures: how they look, think, move and die.
 //   Husk     fast, rushes you and claws, sometimes leaps at you
 //   Spitter  keeps its distance and spits slow glowing bile you can dodge or punch back
 //   Bloater  big and slow, swells up and bursts next to you. Shoot it near a crowd!
 import * as THREE from 'three';
-import { textures } from './textures.js';
 import { COLORS } from './fx.js';
 import { sfx } from './audio.js';
+import { makeModel, pose } from './models.js';
 
 // ---- Tuning ----
-// parts: [height, radius, isHead] spheres the bullets can hit
+// parts: [height, radius, isHead, forward] spheres the bullets can hit
+// (forward = how far in front of its feet, because the husk hunches over)
 export const TYPES = {
-  husk: { hp: 35, speed: 10.5, accel: 45, radius: 0.5, eye: 1.6, score: 100, dmg: 12, reach: 2.4, parts: [[0.5, 0.42], [1.1, 0.5], [1.65, 0.3, 1]] },
-  spitter: { hp: 60, speed: 6, accel: 25, radius: 0.55, eye: 2.3, score: 150, range: [10, 22], fireGap: [1.8, 3.2], orbSpeed: 21, orbDmg: 14, parts: [[0.7, 0.45], [1.6, 0.55], [2.4, 0.35, 1]] },
-  bloater: { hp: 180, speed: 3.8, accel: 12, radius: 1.15, eye: 2.4, score: 300, blastR: 6, blastDmg: 40, parts: [[1.3, 1.25], [2.65, 0.42, 1]] },
+  husk: { hp: 35, speed: 10.5, accel: 45, radius: 0.5, eye: 1.6, score: 100, dmg: 12, reach: 2.4, parts: [[0.5, 0.4], [1.15, 0.42, 0, 0.12], [1.5, 0.36, 0, 0.3], [1.78, 0.25, 1, 0.45]] },
+  spitter: { hp: 60, speed: 6, accel: 25, radius: 0.55, eye: 2.3, score: 150, range: [10, 22], fireGap: [1.8, 3.2], orbSpeed: 21, orbDmg: 14, parts: [[0.7, 0.42], [1.65, 0.45], [2.05, 0.3, 0, 0.12], [2.48, 0.28, 1, 0.06]] },
+  bloater: { hp: 180, speed: 3.8, accel: 12, radius: 1.15, eye: 2.4, score: 300, blastR: 6, blastDmg: 40, parts: [[1.38, 1.25], [2.35, 0.36, 1, 0.5]] },
 };
 const GRAVITY = 28;
 const CLOUD_TIME = 5;       // how long the gas from a bloater lingers
 const CLOUD_R = 3.5;
 const CLOUD_DPS = 10;
-
-// ---------- Models, built from simple shapes ----------
-function fleshMat(color) {
-  return new THREE.MeshStandardMaterial({ map: textures.flesh, color, roughness: 0.55, emissive: 0x000000 });
-}
-const glowMat = () => new THREE.MeshStandardMaterial({ color: 0xcfff40, emissive: 0xb0ff20, emissiveIntensity: 2.5 });
-const darkMat = new THREE.MeshStandardMaterial({ color: 0x2a1614, roughness: 0.8 });
-
-function mesh(geo, mat, x = 0, y = 0, z = 0) {
-  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); return m;
-}
-function limb(w, len, mat, x, y, z, claw) {
-  const pivot = new THREE.Group(); pivot.position.set(x, y, z);
-  pivot.add(mesh(new THREE.BoxGeometry(w, len, w), mat, 0, -len / 2, 0));
-  if (claw) {
-    const c = mesh(new THREE.ConeGeometry(w * 0.5, 0.28, 5), darkMat, 0, -len - 0.1, 0);
-    c.rotation.x = Math.PI; pivot.add(c);
-  }
-  return pivot;
-}
-function pustules(parent, n, r, y, sx, sy, sz, mat) {
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.3) * 1.2;
-    parent.add(mesh(new THREE.SphereGeometry(0.05 + Math.random() * r, 6, 5), mat,
-      Math.cos(a) * Math.cos(b) * sx, y + Math.sin(b) * sy, Math.sin(a) * Math.cos(b) * sz));
-  }
-}
-
-function buildHusk() {
-  const g = new THREE.Group(), flesh = fleshMat(0x9a8670), glow = glowMat();
-  const body = new THREE.Group(); body.position.y = 0.9; body.rotation.x = 0.45; g.add(body);
-  const torso = mesh(new THREE.SphereGeometry(0.45, 12, 10), flesh, 0, 0.35, 0.05); torso.scale.set(1, 1.25, 0.85); body.add(torso);
-  pustules(body, 6, 0.07, 0.4, 0.4, 0.5, 0.36, glow);
-  const head = mesh(new THREE.SphereGeometry(0.27, 10, 8), flesh, 0, 0.88, 0.22); body.add(head);
-  head.add(mesh(new THREE.SphereGeometry(0.055, 6, 5), glow, 0.1, 0.05, 0.22), mesh(new THREE.SphereGeometry(0.055, 6, 5), glow, -0.1, 0.05, 0.22));
-  head.add(mesh(new THREE.BoxGeometry(0.3, 0.1, 0.2), darkMat, 0, -0.16, 0.15));
-  const arms = [limb(0.13, 0.9, flesh, 0.48, 0.65, 0.1, true), limb(0.13, 0.9, flesh, -0.48, 0.65, 0.1, true)];
-  body.add(...arms);
-  const legs = [limb(0.17, 0.9, flesh, 0.22, 0.9, 0), limb(0.17, 0.9, flesh, -0.22, 0.9, 0)];
-  g.add(...legs);
-  return { group: g, flesh: [flesh], arms, legs, glow };
-}
-
-function buildSpitter() {
-  const g = new THREE.Group(), flesh = fleshMat(0x8a7a8a), glow = glowMat();
-  const body = new THREE.Group(); body.position.y = 1.25; body.rotation.x = 0.15; g.add(body);
-  const torso = mesh(new THREE.SphereGeometry(0.42, 12, 10), flesh, 0, 0.4, 0); torso.scale.set(0.9, 1.45, 0.8); body.add(torso);
-  const sac = mesh(new THREE.SphereGeometry(0.3, 12, 10), glow, 0, 0.85, 0.3); body.add(sac);
-  const head = mesh(new THREE.SphereGeometry(0.3, 10, 8), flesh, 0, 1.15, 0.12); head.scale.set(0.9, 1.2, 1); body.add(head);
-  head.add(mesh(new THREE.SphereGeometry(0.05, 6, 5), glow, 0.12, 0.08, 0.24), mesh(new THREE.SphereGeometry(0.05, 6, 5), glow, -0.12, 0.08, 0.24), mesh(new THREE.SphereGeometry(0.05, 6, 5), glow, 0, 0.18, 0.25));
-  pustules(body, 5, 0.06, 0.3, 0.35, 0.6, 0.3, glow);
-  const arms = [limb(0.1, 0.7, flesh, 0.4, 0.75, 0, true), limb(0.1, 0.7, flesh, -0.4, 0.75, 0, true)];
-  body.add(...arms);
-  const legs = [limb(0.15, 1.25, flesh, 0.22, 1.25, 0), limb(0.15, 1.25, flesh, -0.22, 1.25, 0)];
-  g.add(...legs);
-  return { group: g, flesh: [flesh], arms, legs, glow, sac };
-}
-
-function buildBloater() {
-  const g = new THREE.Group(), flesh = fleshMat(0x8c9460), glow = glowMat();
-  const body = new THREE.Group(); g.add(body);
-  const belly = mesh(new THREE.SphereGeometry(1.2, 18, 14), flesh, 0, 1.35, 0); belly.scale.set(1, 0.95, 1.05); body.add(belly);
-  pustules(body, 22, 0.16, 1.35, 1.15, 1.0, 1.2, glow);
-  const head = mesh(new THREE.SphereGeometry(0.4, 10, 8), flesh, 0, 2.55, 0.45); body.add(head);
-  head.add(mesh(new THREE.SphereGeometry(0.07, 6, 5), glow, 0.14, 0.05, 0.34), mesh(new THREE.SphereGeometry(0.07, 6, 5), glow, -0.14, 0.05, 0.34));
-  const arms = [limb(0.2, 0.7, flesh, 1.05, 1.7, 0.2, true), limb(0.2, 0.7, flesh, -1.05, 1.7, 0.2, true)];
-  body.add(...arms);
-  const legs = [limb(0.3, 0.5, flesh, 0.5, 0.5, 0), limb(0.3, 0.5, flesh, -0.5, 0.5, 0)];
-  g.add(...legs);
-  return { group: g, flesh: [flesh], arms, legs, glow, body };
-}
-
-const BUILD = { husk: buildHusk, spitter: buildSpitter, bloater: buildBloater };
 
 // Turn smoothly from angle a towards angle b.
 function turn(a, b, k) {
@@ -126,7 +54,7 @@ export class Enemies {
 
   spawn(type, x, z) {
     const cfg = TYPES[type];
-    const model = BUILD[type]();
+    const model = makeModel(type);
     this.game.scene.add(model.group);
     const e = {
       type, cfg, model, hp: cfg.hp,
@@ -158,7 +86,8 @@ export class Enemies {
       if (e.dead) continue;
       const s = 1 + e.swell * 0.35;
       for (const part of e.cfg.parts) {
-        const t = raySphere(o, d, e.pos.x, e.pos.y + part[0] * s, e.pos.z, part[1] * s);
+        const fwd = (part[3] || 0) * s;
+        const t = raySphere(o, d, e.pos.x + Math.sin(e.yaw) * fwd, e.pos.y + part[0] * s, e.pos.z + Math.cos(e.yaw) * fwd, part[1] * s);
         if (t !== null && t < maxT && (!best || t < best.t)) best = { enemy: e, t, head: !!part[2] };
       }
     }
@@ -354,26 +283,50 @@ export class Enemies {
       const rise = e.state === 'spawn' ? Math.max(0, e.stateT / 0.8) * 2.8 : 0;
       m.group.position.set(e.pos.x, e.pos.y - rise, e.pos.z);
       m.group.rotation.y = e.yaw;
+      const b = m.bones;
       const sp = Math.hypot(e.vel.x, e.vel.z);
-      const w = e.t * (5 + sp * 0.9), swing = Math.min(1, sp / 6) * 0.8;
-      m.legs[0].rotation.x = Math.sin(w) * swing;
-      m.legs[1].rotation.x = -Math.sin(w) * swing;
-      let arm = -0.9 + Math.sin(w) * 0.3, arm2 = -0.9 - Math.sin(w) * 0.3;
+      // walk cycle: w goes round faster the faster it moves
+      const w = e.t * (5 + sp * 0.9), swing = Math.min(1, sp / 6) * (e.type === 'bloater' ? 0.5 : 0.8);
+      const airborne = !e.onGround;
+      for (const [side, ph] of [['L', 0], ['R', Math.PI]]) {
+        const s = Math.sin(w + ph);
+        if (airborne) { pose(b['leg' + side], -0.6); pose(b['knee' + side], 0.9); }
+        else {
+          pose(b['leg' + side], s * swing);
+          // the knee bends as the leg swings forward
+          pose(b['knee' + side], Math.max(0, Math.sin(w + ph + 1.6)) * swing * 1.3);
+        }
+        pose(b['ankle' + side], -Math.max(0, s) * swing * 0.5);
+      }
+      if (b.hips) b.hips.position.y = b.hips.userData.rest.y + Math.abs(Math.sin(w)) * 0.05 * swing;
+
+      // arms: [shoulder L, shoulder R, elbow], jaw open, head tilt, spine bend
+      let armL = -0.9 + Math.sin(w) * 0.35 * swing, armR = -0.9 - Math.sin(w) * 0.35 * swing, elbow = -0.5;
+      let jaw = 0.1 + Math.sin(e.t * 2.3) * 0.08, head = Math.sin(e.t * 1.7) * 0.06, spine = 0;
       if (e.type === 'husk') {
-        if (e.state === 'windup') arm = arm2 = -2.7;
-        else if (e.state === 'recover') arm = arm2 = -0.4;
-        else if (e.state === 'leap') arm = arm2 = -1.6;
+        if (e.state === 'windup') { armL = armR = -2.8; elbow = -0.9; jaw = 0.75; spine = -0.15; }
+        else if (e.state === 'recover') { armL = armR = -0.3; elbow = -0.1; jaw = 0.4; spine = 0.2; }
+        else if (e.state === 'leap') { armL = armR = -1.7; elbow = -0.2; jaw = 0.85; spine = -0.3; }
+        else if (e.stun > 0) { armL = armR = 0.3; elbow = -0.2; jaw = 0.6; spine = -0.4; }
       } else if (e.type === 'spitter') {
-        arm = -0.3 + Math.sin(w) * 0.3; arm2 = -0.3 - Math.sin(w) * 0.3;
-        const charge = e.state === 'charge' ? 1 - e.stateT / 0.55 : 0;
-        m.sac.scale.setScalar(1 + charge * 0.6 + Math.sin(e.t * 4) * 0.05);
-        m.glow.emissiveIntensity = 2 + charge * 8;
+        armL = -0.3 + Math.sin(w) * 0.3 * swing; armR = -0.3 - Math.sin(w) * 0.3 * swing; elbow = -0.8;
+        const charge = e.state === 'charge' ? 1 - Math.max(0, e.stateT) / 0.55 : 0;
+        head = -charge * 0.55;             // rears its head back...
+        spine = -charge * 0.25;
+        armL -= charge * 0.8; armR -= charge * 0.8;
+        b.sac.scale.setScalar(1 + charge * 0.7 + Math.sin(e.t * 4) * 0.05);
+        m.sac.emissiveIntensity = 0.4 + charge * 6;
       } else if (e.type === 'bloater') {
         const s = 1 + e.swell * 0.35 + Math.sin(e.t * 30) * 0.05 * e.swell;
-        m.body.scale.setScalar(s);
-        m.glow.emissiveIntensity = 2 + e.swell * 10 + Math.sin(e.t * 3) * 0.5;
+        b.body.scale.setScalar(s);
+        b.body.rotation.z = Math.sin(w * 0.5) * 0.05 * swing;
+        armL = -0.5 + Math.sin(w) * 0.3; armR = -0.5 - Math.sin(w) * 0.3; elbow = -0.4;
+        jaw = 0.15 + e.swell * 0.5;
+        m.glow.emissiveIntensity = 1 + e.swell * 10 + Math.sin(e.t * 3) * 0.4;
       }
-      m.arms[0].rotation.x = arm; m.arms[1].rotation.x = arm2;
+      pose(b.armL, armL, 0.15); pose(b.armR, armR, -0.15);
+      pose(b.elbowL, elbow); pose(b.elbowR, elbow);
+      pose(b.jaw, jaw); pose(b.head, head); pose(b.spine, spine);
       for (const f of m.flesh) f.emissive.setRGB(e.flash, e.flash * 0.9, e.flash * 0.8);
     }
   }

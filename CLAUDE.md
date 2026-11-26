@@ -27,7 +27,8 @@ A 3D boomer-shooter FPS for a parent and their son to build together and learn f
 - **Style** (`main.js` `RANKS`): kills, headshots, gibs, parries, dodges, mid-air and multi-kills fill a meter that drains; ranks CONTAINED to EXTERMINATOR multiply your score. Getting hit costs style.
 - **Waves** (`main.js` `WAVES`): 4 waves, up to `MAX_ALIVE` creatures at once; clear them all to win.
 - **Juice**: hitstop on kills/parries, screen shake, FOV widens with speed, bloom, gore particles, floor splats, gibs, tracers (`fx.js`).
-- **Guns on screen** (`viewmodel.js`): their own scene drawn after the world, with bob, sway, recoil, switching and the punch.
+- **Creature models** (`models.js`): low-poly, sculpted in code. Each piece starts as a ball, tube, spike or lathe outline, is squashed, pushed in and out with noise (`sculpt`), and every triangle is painted its own colour with rot/bruise patches and darker undersides (`paint`), drawn with flat shading. Pieces hang on a skeleton (`Rig`: hips, spine, neck, head, jaw, arms, elbows, legs, knees, ankles) and are merged per joint. Each type is built once and cloned; `pose(bone, x, z)` turns a joint on top of its resting angle, and `animate` in `enemies.js` drives the walk cycles, attacks and jaws. Hit spheres in `TYPES.parts` match the models (with a forward offset for the hunched husk).
+- **Guns on screen** (`viewmodel.js`): low-poly guns made from side outlines extruded to thickness with chamfered edges (`ext`), plus tubes and blocks; gloved hands and armoured forearms; an armoured fist for the punch. `GUN_SCALE` sets their size. Keep gun metalness low (there's no environment map, so shiny metal renders black). Their own scene is drawn after the world, with bob, sway, recoil, switching and the punch.
 - **Sound** (`audio.js`): Web Audio synth effects and a 168 BPM soundtrack that gets heavier with more creatures and a higher style rank. M mutes.
 
 ## Ideas for next

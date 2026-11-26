@@ -1,4 +1,4 @@
-// main.js - sets everything up and runs the game: waves, style, the loop.
+﻿// main.js - sets everything up and runs the game: waves, style, the loop.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -39,7 +39,7 @@ renderer.autoClear = false;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x4a4824, 0.014);
-scene.add(new THREE.HemisphereLight(0xc8c088, 0x2a1810, 1.1));
+scene.add(new THREE.HemisphereLight(0xd0c890, 0x3a2818, 1.7));
 const sun = new THREE.DirectionalLight(0xffb070, 1.3);
 sun.position.set(-240, 70, -220);
 scene.add(sun);
@@ -124,10 +124,23 @@ game.onPlayerDeath = () => {
 };
 
 // ---------- Pickups (scattergun shells) ----------
-const shellGeo = new THREE.BoxGeometry(0.35, 0.25, 0.25);
-const shellMat = new THREE.MeshStandardMaterial({ color: 0xff8a30, emissive: 0xff6010, emissiveIntensity: 1.5 });
+// a little bundle of three glowing shells
+const shellGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.3, 8);
+const capGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.07, 8);
+const shellMat = new THREE.MeshStandardMaterial({ color: 0xc02a1a, emissive: 0xff4010, emissiveIntensity: 0.8, flatShading: true });
+const capMat = new THREE.MeshStandardMaterial({ color: 0xd8a040, emissive: 0xff9020, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.3, flatShading: true });
+function shellBundle() {
+  const g = new THREE.Group();
+  for (const [x, z] of [[-0.08, 0], [0.08, 0], [0, 0.13]]) {
+    const s = new THREE.Mesh(shellGeo, shellMat); s.position.set(x, 0, z);
+    const c = new THREE.Mesh(capGeo, capMat); c.position.set(x, -0.17, z);
+    g.add(s, c);
+  }
+  g.rotation.x = 0.4;
+  return g;
+}
 game.spawnPickup = (pos) => {
-  const m = new THREE.Mesh(shellGeo, shellMat);
+  const m = shellBundle();
   m.position.set(pos.x, Math.max(pos.y, game.level.heightAt(pos.x, pos.z) < 0.5 ? 0 : pos.y) + 0.5, pos.z);
   scene.add(m);
   game.pickups.push({ mesh: m, t: 0, base: m.position.y });
@@ -248,7 +261,7 @@ document.addEventListener('pointerlockchange', () => {
     game.state = 'paused';
     input.fire = false;
     setMusic(false);
-    document.getElementById('startText').textContent = 'PAUSED · CLICK TO CONTINUE';
+    document.getElementById('startText').textContent = 'PAUSED Â· CLICK TO CONTINUE';
     overlay.classList.remove('hidden');
   }
 });
@@ -259,7 +272,7 @@ function showEnd(title, sub) {
   document.getElementById('endSub').textContent = sub;
   const t = Math.floor(game.time);
   document.getElementById('endStats').innerHTML =
-    `Score <b>${game.score.toLocaleString()}</b> · Kills <b>${game.kills}</b> · Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
+    `Score <b>${game.score.toLocaleString()}</b> Â· Kills <b>${game.kills}</b> Â· Time <b>${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}</b><br>Best rank <b>${RANKS[game.bestRank]}</b>`;
   setTimeout(() => endScreen.classList.remove('hidden'), 900);
 }
 endScreen.addEventListener('click', () => location.reload());
