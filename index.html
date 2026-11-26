@@ -1,17 +1,81 @@
 <!doctype html>
 <html lang="en-GB">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>fin05</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROTSTRIKE</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="start">
-    <h1>fin05</h1>
-    <p>The repo is set up. The game goes here next.</p>
-  </main>
-  <canvas id="game" width="480" height="270"></canvas>
+  <canvas id="game"></canvas>
+
+  <div id="hurt"></div>
+  <div id="healflash"></div>
+
+  <div id="hud" class="hidden">
+    <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmarker"><b></b><b></b><b></b><b></b></div>
+    <div id="banner"><h2 id="bannerTitle"></h2><p id="bannerSub"></p></div>
+    <div id="wave"></div>
+    <div id="score">0</div>
+    <div id="stylebox">
+      <div id="rank">CONTAINED</div>
+      <div class="bar"><div id="styleFill"></div></div>
+      <div id="feed"></div>
+    </div>
+    <div id="vitals">
+      <div id="dash"><i></i><i></i><i></i></div>
+      <div class="row"><span id="hpNum">100</span><div class="bar"><div id="hpFill"></div></div></div>
+    </div>
+    <div id="weaponBox">
+      <div id="weaponName">PULSE RIFLE</div>
+      <div id="ammo">∞</div>
+      <div class="bar thin" id="heatBar"><div id="heatFill"></div></div>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div class="panel">
+      <h1>ROTSTRIKE</h1>
+      <p class="story">The planet is dying. The rot took the colonies first, then the soil, then the sky. Command has written it off. You are the one they send when there's nothing left to save. Burn it clean.</p>
+      <table>
+        <tr><td>Mouse</td><td>Look</td></tr>
+        <tr><td>W A S D</td><td>Move</td></tr>
+        <tr><td>Space</td><td>Jump (again against a wall to wall-jump)</td></tr>
+        <tr><td>Shift</td><td>Dash: you can't be hit while dashing</td></tr>
+        <tr><td>C or Ctrl</td><td>Slide (jump out of it to fly)</td></tr>
+        <tr><td>Left click</td><td>Shoot</td></tr>
+        <tr><td>F or right click</td><td>Punch: hit glowing bile to send it back</td></tr>
+        <tr><td>1 / 2 or wheel</td><td>Pulse rifle / Scattergun</td></tr>
+        <tr><td>M</td><td>Mute</td></tr>
+      </table>
+      <p class="hint">Their blood heals you, but only up close. Don't hang back. Don't stand in the rot.</p>
+      <div id="startText">LOADING</div>
+    </div>
+  </div>
+
+  <div id="end" class="hidden">
+    <h1 id="endTitle"></h1>
+    <p id="endSub"></p>
+    <p id="endStats"></p>
+    <p class="small">Click to go again</p>
+  </div>
+
+  <script>
+    // Where Three.js comes from: through serve.mjs on your own computer
+    // (it keeps a copy), straight from the CDN on the web.
+    (function () {
+      var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      var base = local ? '/__lib/' : 'https://unpkg.com/';
+      var map = document.createElement('script');
+      map.type = 'importmap';
+      map.textContent = JSON.stringify({ imports: {
+        'three': base + 'three@0.160.0/build/three.module.js',
+        'three/addons/': base + 'three@0.160.0/examples/jsm/',
+      } });
+      document.head.appendChild(map);
+    })();
+  </script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

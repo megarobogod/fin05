@@ -1,25 +1,93 @@
-:root { color-scheme: dark; }
+:root {
+  --rot: #d4ff3a;
+  --tech: #4ae8ff;
+  --blood: #ff2a2a;
+  --ink: #e8e6d8;
+  --dim: #9a9888;
+  --heavy: Impact, "Arial Narrow Bold", "Arial Black", sans-serif;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; user-select: none; }
+#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+.hidden { display: none !important; }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: #000;
-  color: #eee;
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
-  text-align: center;
-}
+/* damage and heal flashes round the edges */
+#hurt, #healflash { position: fixed; inset: 0; pointer-events: none; opacity: 0; }
+#hurt { background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 0, 0, 0.75) 100%); }
+#healflash { background: radial-gradient(ellipse at center, transparent 55%, rgba(170, 255, 60, 0.5) 100%); }
 
-h1 { font-size: clamp(1.6rem, 6vw, 2.6rem); margin: 0 0 .4em; letter-spacing: -0.02em; }
-p { margin: 0 auto; max-width: 32ch; color: #aaa; }
+#hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--heavy); letter-spacing: 0.04em; }
+.bar { height: 10px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.25); }
+.bar > div { height: 100%; width: 0; }
 
-/* The game canvas: a small picture scaled up with sharp pixels. */
-#game {
-  width: min(100%, 960px);
-  aspect-ratio: 16 / 9;
-  image-rendering: pixelated;
-  background: #111;
-}
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#crosshair i { position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
+#crosshair i:nth-child(1) { left: -1px; top: -12px; width: 2px; height: 7px; }
+#crosshair i:nth-child(2) { left: -1px; top: 5px; width: 2px; height: 7px; }
+#crosshair i:nth-child(3) { top: -1px; left: -12px; width: 7px; height: 2px; }
+#crosshair i:nth-child(4) { top: -1px; left: 5px; width: 7px; height: 2px; }
+#hitmarker { position: absolute; left: 50%; top: 50%; opacity: 0; }
+#hitmarker b { position: absolute; width: 10px; height: 2px; background: #fff; }
+#hitmarker b:nth-child(1) { transform: translate(5px, -9px) rotate(-45deg); }
+#hitmarker b:nth-child(2) { transform: translate(5px, 7px) rotate(45deg); }
+#hitmarker b:nth-child(3) { transform: translate(-15px, -9px) rotate(45deg); }
+#hitmarker b:nth-child(4) { transform: translate(-15px, 7px) rotate(-45deg); }
+#hitmarker.head b { background: var(--blood); width: 13px; }
+
+#banner { position: absolute; top: 22%; width: 100%; text-align: center; opacity: 0; transform: scale(1.3); transition: opacity 0.2s, transform 0.25s; }
+#banner.on { opacity: 1; transform: scale(1); }
+#banner h2 { margin: 0; font-size: clamp(2.5rem, 7vw, 5rem); color: var(--rot); text-shadow: 0 0 24px rgba(212, 255, 58, 0.5), 0 3px 0 #000; font-weight: normal; }
+#banner p { margin: 0; font-size: 1.2rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
+
+#wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 1.1rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
+#score { position: absolute; top: 14px; right: 20px; font-size: 1.6rem; color: var(--ink); text-shadow: 0 2px 0 #000; }
+
+#stylebox { position: absolute; top: 60px; right: 20px; width: min(260px, 40vw); text-align: right; }
+#rank { font-size: 1.7rem; white-space: nowrap; direction: rtl; color: var(--dim); text-shadow: 0 2px 0 #000; }
+#rank[data-rank="1"] { color: #c8c8a0; }
+#rank[data-rank="2"] { color: var(--rot); }
+#rank[data-rank="3"] { color: #ffb030; }
+#rank[data-rank="4"] { color: #ff5a20; }
+#rank[data-rank="5"] { color: var(--blood); text-shadow: 0 0 16px rgba(255, 40, 40, 0.8), 0 2px 0 #000; }
+#rank.pop { animation: pop 0.3s; }
+@keyframes pop { from { transform: scale(1.5); } to { transform: scale(1); } }
+#styleFill { background: var(--rot); }
+#feed { margin-top: 6px; font-size: 1rem; }
+#feed div { color: var(--ink); text-shadow: 0 2px 0 #000; transition: opacity 0.8s; }
+#feed div.fade { opacity: 0; }
+#feed div.bad { color: var(--blood); }
+#feed div.ammo { color: #ffa040; }
+
+#vitals { position: absolute; left: 20px; bottom: 20px; width: min(320px, 40vw); }
+#vitals .row { display: flex; align-items: center; gap: 10px; }
+#hpNum { font-size: 2.6rem; min-width: 2.4ch; text-shadow: 0 2px 0 #000; }
+#vitals .bar { flex: 1; height: 16px; }
+#hpFill { background: linear-gradient(#e8e6d8, #a8a698); transition: width 0.1s; }
+#hpFill.low { background: var(--blood); }
+#dash { display: flex; gap: 6px; margin-bottom: 6px; }
+#dash i { --f: 1; width: 44px; height: 7px; background: linear-gradient(to right, var(--tech) calc(var(--f) * 100%), rgba(0, 0, 0, 0.5) calc(var(--f) * 100%)); border: 1px solid rgba(255, 255, 255, 0.25); }
+
+#weaponBox { position: absolute; right: 20px; bottom: 20px; text-align: right; min-width: 200px; }
+#weaponName { font-size: 1.1rem; color: var(--dim); }
+#ammo { font-size: 2.2rem; text-shadow: 0 2px 0 #000; }
+#weaponBox .bar.thin { height: 6px; }
+#heatFill { background: linear-gradient(to right, var(--tech), #ff6a20); }
+#heatFill.hot { background: var(--blood); }
+
+/* title, pause and end screens */
+#overlay, #end { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(20, 22, 8, 0.75), rgba(0, 0, 0, 0.92)); cursor: pointer; overflow-y: auto; }
+.panel { max-width: 560px; width: 100%; text-align: center; }
+h1 { font-family: var(--heavy); font-weight: normal; font-size: clamp(3rem, 12vw, 6rem); margin: 0; color: var(--rot); letter-spacing: 0.06em; text-shadow: 0 0 30px rgba(212, 255, 58, 0.35), 0 4px 0 #000; }
+.story { color: var(--ink); margin: 0.5em auto 1.2em; max-width: 46ch; }
+table { margin: 0 auto; border-collapse: collapse; text-align: left; font-size: 0.95rem; }
+td { padding: 3px 10px; }
+td:first-child { color: var(--rot); font-family: var(--heavy); letter-spacing: 0.05em; text-align: right; white-space: nowrap; }
+.hint { color: var(--dim); font-size: 0.9rem; margin: 1.2em auto; max-width: 44ch; }
+#startText { font-family: var(--heavy); font-size: 1.6rem; color: var(--ink); letter-spacing: 0.08em; animation: blink 1.2s infinite; }
+@keyframes blink { 50% { opacity: 0.4; } }
+#end { text-align: center; align-content: center; }
+#endSub { font-size: 1.2rem; margin: 0.2em 0 1em; }
+#endStats { font-size: 1.1rem; color: var(--dim); }
+#endStats b { color: var(--ink); }
+.small { color: var(--dim); font-size: 0.9rem; }
