@@ -106,7 +106,9 @@ game.onKill = (e, info) => {
   if (info.weapon === 'punch') { pts += 40; labels.push('KNOCKOUT'); }
   if (info.weapon === 'parry') { pts += 50; labels.push('RETURN TO SENDER'); }
   if (info.chain) { pts += 40; labels.push('CHAIN REACTION'); }
-  if (!p.onGround) { pts += 20; labels.push('AIRBORNE'); }
+  if (info.weapon === 'slam') { pts += 40; labels.push('SLAMMED'); }
+  if (p.wallRun) { pts += 30; labels.push('WALLRUNNING'); }
+  else if (!p.onGround) { pts += 20; labels.push('AIRBORNE'); }
   if (p.sliding) { pts += 15; labels.push('SLIDING'); }
   if (game.time - game.multi.t < 0.6) game.multi.n++; else game.multi.n = 1;
   game.multi.t = game.time;

@@ -19,8 +19,10 @@ Then open http://localhost:5176
 | Mouse | Look |
 | W A S D | Move |
 | Space | Jump (again against a wall to wall-jump) |
+| W into a wall in the air | Wall run along it (Space to jump off) |
+| W into a ledge | Climb up onto it (low blocks: just run at them) |
 | Shift | Dash (you can't be hit while dashing) |
-| C or Ctrl | Slide |
+| C or Ctrl | Slide. In the air: ground slam (jump as you land to fly high) |
 | Left click | Shoot |
 | F or right click | Punch (hit glowing bile to send it back) |
 | 1 / 2 or wheel | Pulse rifle / Scattergun |
