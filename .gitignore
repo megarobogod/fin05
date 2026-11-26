@@ -1,0 +1,4 @@
+.cdn-cache/
+node_modules/
+*.log
+.claude/
